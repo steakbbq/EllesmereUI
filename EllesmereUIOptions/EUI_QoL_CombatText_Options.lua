@@ -170,7 +170,7 @@ function _G._EUI_BuildCombatTextPage(pageName, parent, yOffset)
     local row1
     row1, h = W:DualRow(parent, y,
         { type="toggle", text=FEATURE,
-          tooltip="Your damage on the mob you hit and your heals on the group frame.",
+          tooltip="Your damage on the mob you hit and your heals on the group frame. In a group, some of your hits may not show.",
           getValue=function() return not off() end,
           setValue=EllesmereUI.SectionToggleSetValue(function(v) Set("enabled", v) end) },
         Toggle("Show My Healing", "heal"));  y = y - h

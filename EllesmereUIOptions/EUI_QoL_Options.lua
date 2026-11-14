@@ -1,9 +1,10 @@
 if EUI_CLIENT_BLOCKED then return end -- pre-12.1 client failsafe (EllesmereUI_ClientGate.lua)
 -------------------------------------------------------------------------------
 --  EUI_QoL_Options.lua
---  Registers the Quality of Life sidebar addon with its two tabs:
+--  Registers the Quality of Life sidebar addon with its tabs:
 --    * Quality of Life -- general QoL features (built by parent general options)
 --    * Cursor          -- cursor skin (built by EUI_QoL_Cursor_Options.lua)
+--    * Combat Text     -- Outgoing Combat Text, WoW Forever only (EUI_QoL_CombatText_Options.lua)
 -------------------------------------------------------------------------------
 -- Page names are DEEP-LINK IDENTIFIERS, not just tab labels: every
 -- NavigateToElementSettings tuple (_ELEMENT_SETTINGS_MAP, What's New nav)
@@ -22,6 +23,7 @@ local PAGE_UPGCALC  = "Upgrader"
 local PAGE_SHIFTER  = "Shifter"
 local PAGE_MOVEMENT = "MoveAlert"
 local PAGE_RAIDTOOLS = "Raid Tools"
+local PAGE_COMBATTEXT = "Combat Text"
 
 -------------------------------------------------------------------------------
 --  Hide Item Transforms picker popup
@@ -2539,6 +2541,8 @@ initFrame:SetScript("OnEvent", function(self)
     end
 
     local pages = { PAGE_QOL, PAGE_RAIDTOOLS, PAGE_CURSOR, PAGE_SHIFTER, PAGE_MOVEMENT }
+    -- Outgoing Combat Text exists on WoW Forever only: its tab is not offered on retail.
+    if EllesmereUI.IS_FOREVER then pages[#pages + 1] = PAGE_COMBATTEXT end
     -- No item upgrade system on WoW Forever: the Upgrader tab is not offered there
     -- (its resident file returns at load, so the page builder never exists either).
     if not EllesmereUI.IS_FOREVER then pages[#pages + 1] = PAGE_UPGCALC end
@@ -2551,6 +2555,11 @@ initFrame:SetScript("OnEvent", function(self)
             ["macro"] = true }
         for i = #searchTerms, 1, -1 do
             if foreverDrop[searchTerms[i]] then table.remove(searchTerms, i) end
+        end
+        -- Terms of the Combat Text tab (Outgoing Combat Text).
+        for _, term in ipairs({ "outgoing combat text", "outgoing", "damage numbers", "floating text",
+            "heal numbers", "crit text", "spell icons", "number morph", "pet damage", "dot ticks" }) do
+            searchTerms[#searchTerms + 1] = term
         end
     end
     EllesmereUI:RegisterModule("EllesmereUIQoL", {
@@ -2566,6 +2575,10 @@ initFrame:SetScript("OnEvent", function(self)
             if pageName ~= PAGE_RAIDTOOLS and not EllesmereUI._prebuilding
                and _G._EUI_RaidTools_Preview then
                 _G._EUI_RaidTools_Preview(false)
+            end
+            if pageName ~= PAGE_COMBATTEXT and not EllesmereUI._prebuilding
+               and _G._EUI_CombatTextHidePreview then
+                _G._EUI_CombatTextHidePreview()
             end
             if pageName == PAGE_QOL then
                 return BuildQoLPage(pageName, parent, yOffset)
@@ -2585,6 +2598,17 @@ initFrame:SetScript("OnEvent", function(self)
             if pageName == PAGE_RAIDTOOLS and _G._EUI_BuildRaidToolsPage then
                 return _G._EUI_BuildRaidToolsPage(pageName, parent, yOffset)
             end
+            if pageName == PAGE_COMBATTEXT and _G._EUI_BuildCombatTextPage then
+                return _G._EUI_BuildCombatTextPage(pageName, parent, yOffset)
+            end
+        end,
+        -- The Combat Text preview lives in the content header; declaring the
+        -- builder makes a cached page whose header was dropped rebuild with it.
+        getHeaderBuilder = function(pageName)
+            if pageName == PAGE_COMBATTEXT and _G._EUI_CombatTextHeaderBuilder then
+                return _G._EUI_CombatTextHeaderBuilder()
+            end
+            return nil
         end,
         -- Cached pages are restored WITHOUT a rebuild, so buildPage never runs
         -- on the warm path -- reopening the window onto Raid Tools would leave
@@ -2594,6 +2618,12 @@ initFrame:SetScript("OnEvent", function(self)
             if EllesmereUI._prebuilding then return end
             if _G._EUI_RaidTools_Preview then
                 _G._EUI_RaidTools_Preview(pageName == PAGE_RAIDTOOLS)
+            end
+            -- The Combat Text preview plays on its own page only.
+            if pageName == PAGE_COMBATTEXT then
+                if _G._EUI_CombatTextRefreshHeader then _G._EUI_CombatTextRefreshHeader() end
+            elseif _G._EUI_CombatTextHidePreview then
+                _G._EUI_CombatTextHidePreview()
             end
         end,
         resetScope = "account",
@@ -2726,6 +2756,9 @@ initFrame:SetScript("OnEvent", function(self)
             if EllesmereUI._ShutdownShifter then EllesmereUI._ShutdownShifter() end
             if _G._EUI_AutoLogging_Check then _G._EUI_AutoLogging_Check() end
             EllesmereUI._ModuleNS["EllesmereUIQoL"].SCT_Reset()
+            -- Outgoing Combat Text exists on WoW Forever only.
+            local oct = EllesmereUI.OutgoingCombatText
+            if oct and oct.Reset then oct.Reset() end
             EllesmereUI:InvalidatePageCache()
         end,
         -- Tears down Duration Warning, Raid Tools, and Movement Alert
@@ -2734,6 +2767,7 @@ initFrame:SetScript("OnEvent", function(self)
             if EllesmereUI._durWarnHidePreview then EllesmereUI._durWarnHidePreview() end
             if _G._EUI_RaidTools_Preview then _G._EUI_RaidTools_Preview(false) end
             if EllesmereUI._MovementAlertPreview then EllesmereUI._MovementAlertPreview(false) end
+            if _G._EUI_CombatTextHidePreview then _G._EUI_CombatTextHidePreview() end
         end,
     })
 
